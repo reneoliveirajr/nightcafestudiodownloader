@@ -134,47 +134,67 @@
     };
 
     const smartScroll = async () => {
-      let noNewImagesCounter = 0;
-      const maxScrollAttempts = Infinity;
       let totalScrolls = 0;
       let initialPosition = window.scrollY;
       let adaptiveWait = CONFIG.SCROLL_WAIT;
-
-      while (noNewImagesCounter < 3 && totalScrolls < maxScrollAttempts) {
+      let lastHeight = document.body.scrollHeight;
+      let heightStableCount = 0;
+      
+      const endMarker = "That's all of them!";
+      
+      updateStatus("📜 Iniciando rolagem inteligente para descobrir todas as imagens...");
+      
+      while (totalScrolls < 1000) {
+        totalScrolls++;
+        
         previousCount = discoveredUrls.size;
         scanForImages();
         const currentCount = discoveredUrls.size;
         const newImages = currentCount - previousCount;
-        updateStatus(`🔍 Scroll ${totalScrolls + 1}: Found ${currentCount} images (+${newImages} new)`);
+        
+        updateStatus(`🔍 Scroll ${totalScrolls}: Found ${currentCount} images (+${newImages} new)`);
+        
+        const endElementFound = document.body.innerText.includes(endMarker);
+        
+        const atBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 150;
 
-        if (newImages === 0) {
-          noNewImagesCounter++;
-          adaptiveWait = Math.max(1500, adaptiveWait - 500);
+        const currentHeight = document.body.scrollHeight;
+        const heightStable = currentHeight === lastHeight;
+        
+        if (heightStable && atBottom) {
+          heightStableCount++;
+          updateStatus(`📏 Altura da página estável: ${heightStableCount}/3`);
         } else {
-          noNewImagesCounter = 0;
-          adaptiveWait = CONFIG.SCROLL_WAIT;
+          heightStableCount = 0;
+          lastHeight = currentHeight;
         }
-
-        window.scrollBy(0, window.innerHeight * 0.7);
-        totalScrolls++;
-        await delay(adaptiveWait);
-
-        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
+        
+        if (atBottom) {
           const loadMoreButtons = Array.from(document.querySelectorAll('button, a, [role="button"]')).filter(el => {
             const text = el.textContent.toLowerCase();
             return text.includes('load more') || text.includes('carregar mais') ||
                   text.includes('ver mais') || text.includes('mostrar mais');
           });
-
+          
           if (loadMoreButtons.length > 0) {
             updateStatus("🖱️ Clicking 'Load more' button...");
             loadMoreButtons[0].click();
             await delay(4000);
-            noNewImagesCounter = 0;
-          } else if (noNewImagesCounter >= 4) break;
+            heightStableCount = 0;
+            continue;
+          }
         }
+        
+        if ((endElementFound && heightStableCount >= 1) || 
+            (heightStableCount >= 3 && atBottom)) {
+          updateStatus("✅ Fim da galeria detectado! Todas as imagens foram encontradas.");
+          break;
+        }
+        
+        window.scrollBy(0, window.innerHeight * 0.7);
+        await delay(adaptiveWait);
       }
-
+      
       window.scrollTo(0, initialPosition);
       return totalScrolls;
     };
@@ -300,6 +320,27 @@
       document.body.removeChild(downloadPanel);
     });
 
+    const getHybridFilename = (url, index) => {
+      try {
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+        const parts = pathname.split('/');
+        let jobId = '';
+        
+        if (parts.length >= 3 && parts[parts.length - 2]) {
+          jobId = parts[parts.length - 2];
+        }
+        
+        if (jobId) {
+          return `nightcafe_${String(index + 1).padStart(4, '0')}_${jobId}.jpg`;
+        } else {
+          return `nightcafe_${String(index + 1).padStart(4, '0')}.jpg`;
+        }
+      } catch (e) {
+        return `nightcafe_${String(index + 1).padStart(4, '0')}.jpg`;
+      }
+    };
+
     document.getElementById('btn-download-all').addEventListener('click', async () => {
       const statusElem = document.getElementById('download-status');
       if (statusElem) statusElem.style.display = 'block';
@@ -395,7 +436,7 @@
                   const url = URL.createObjectURL(blob);
                   const link = document.createElement('a');
                   link.href = url;
-                  link.download = `nightcafe_${String(j + 1).padStart(4, '0')}.jpg`;
+                  link.download = getHybridFilename(imageUrl, j);
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
