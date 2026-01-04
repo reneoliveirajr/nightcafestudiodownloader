@@ -30,4 +30,4 @@ This script was developed for personal use, such as gallery backups or personal 
 
 ---
 
-Discover more useful scripts and free resources on our [GitHub repository](https://github.com/reneoliveirajr). ⭐️🚀
+Discover more useful scripts and free resources on our [GitHub repository](https://github.com/reneoliveirajr?tab=repositories). ⭐️🚀
